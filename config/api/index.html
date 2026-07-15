@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Task Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .completed-task { text-decoration: line-through; color: #8c98a5; }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container my-5" style="max-width: 600px;">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="card-title text-center text-dark mb-4">Task Tracker</h2>
+                <form id="taskForm" class="row g-2">
+                    <div class="col-8">
+                        <input type="text" id="taskTitle" class="form-control" placeholder="What needs to be done?" required>
+                    </div>
+                    <div class="col-4">
+                        <button type="submit" class="btn btn-primary w-100">Add Task</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="list-group shadow-sm" id="taskList"></div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", fetchTasks);
+
+        let mockTasks = [
+            { id: 1, title: "Finish PHP Homework", status: "pending" },
+            { id: 2, title: "Upload Code to GitHub", status: "completed" }
+        ];
+
+        function renderTasks(tasks) {
+            const container = document.getElementById("taskList");
+            container.innerHTML = "";
+            if (tasks.length === 0) {
+                container.innerHTML = `<div class="list-group-item text-center text-muted">No tasks found.</div>`;
+                return;
+            }
+            tasks.forEach(task => {
+                const isCompleted = task.status === 'completed';
+                container.innerHTML += `
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <input class="form-check-input me-3" type="checkbox" ${isCompleted ? 'checked' : ''} onclick="toggleTask(${task.id}, '${task.status}')">
+                            <span class="${isCompleted ? 'completed-task' : ''} fw-semibold">${task.title}</span>
+                        </div>
+                        <button class="btn btn-sm btn-danger" onclick="deleteTask(${task.id})">Delete</button>
+                    </div>
+                `;
+            });
+        }
+
+        async function fetchTasks() {
+            try {
+                const response = await fetch('api/tasks.php');
+                if (!response.ok) throw new Error("Offline");
+                const result = await response.json();
+                if(result.status === "success") renderTasks(result.data);
+            } catch (error) {
+                renderTasks(mockTasks);
+            }
+        }
+
+        document.getElementById("taskForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const title = document.getElementById("taskTitle").value;
+            try {
+                const response = await fetch('api/tasks.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title })
+                });
+                if(response.ok) {
+                    document.getElementById("taskForm").reset();
+                    fetchTasks();
+                    return;
+                }
+            } catch (e) {}
+            mockTasks.unshift({ id: Date.now(), title, status: 'pending' });
+            document.getElementById("taskForm").reset();
+            renderTasks(mockTasks);
+        });
+
+        async function toggleTask(id, currentStatus) {
+            const nextStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+            try {
+                const response = await fetch('api/tasks.php', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, status: nextStatus })
+                });
+                if(response.ok) { fetchTasks(); return; }
+            } catch (e) {}
+            mockTasks = mockTasks.map(t => t.id === id ? { ...t, status: nextStatus } : t);
+            renderTasks(mockTasks);
+        }
+
+        async function deleteTask(id) {
+            try {
+                const response = await fetch('api/tasks.php', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                if(response.ok) { fetchTasks(); return; }
+            } catch (e) {}
+            mockTasks = mockTasks.filter(t => t.id !== id);
+            renderTasks(mockTasks);
+        }
+    </script>
+</body>
+</html>
